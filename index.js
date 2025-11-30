@@ -170,6 +170,18 @@ async function run() {
 
 
         const result = await parcelCollection.updateOne(query, update)
+
+
+
+const payment = {
+  amount: session.amount_total/100,
+  currency: session.currency,
+  customEmail: session.customer_email,
+  parcelId: session.metadata.parcelId
+}
+
+
+
         res.send(result)
 
       }
