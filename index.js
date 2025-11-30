@@ -75,76 +75,108 @@ async function run() {
       res.send(result);
     });
 
-    // payment realated api 
-   
+    // payment related API (CLEAN & CORRECT) 1
     app.post("/payment-checkout-session", async (req, res) => {
-      const paymentInfo = req.body;
-       const amount = parseInt(paymentInfo.cost) * 100;
+      try {
+        const paymentInfo = req.body;
 
-      const session = await stripe.checkout.sessions.create({
-        line_items: [
-          {
-            price_data: {
-              currency: "usd",
-              unit_amount: amount,
-              product_data: {
-                name: `Please pay for : ${paymentInfo.parcelName}`
-              }
+        // amount in cents
+        const amount = parseInt(paymentInfo.cost) * 100;
+
+        const session = await stripe.checkout.sessions.create({
+          line_items: [
+            {
+              price_data: {
+                currency: "USD",
+                unit_amount: amount,
+                product_data: {
+                  name: paymentInfo.parcelName,
+                },
+              },
+              quantity: 1,
             },
-            quantity: 1,
-          }
-        ],
-        mode: "payment",
-        customer_email,
-        success_url: `${process.env.SITE_DOMAIN}?success=true/dashboard/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${process.env.SITE_DOMAIN}?success=true/dashboard/payment-cancelled`,
-
-      })
-      res.send({ url: session.url });
-
-    })
-
-
-
-
-
-  // payment related API (CLEAN & CORRECT)
-app.post("/create-checkout-session", async (req, res) => {
-  try {
-    const paymentInfo = req.body;
-
-    // amount in cents
-    const amount = parseInt(paymentInfo.cost) * 100;
-
-    const session = await stripe.checkout.sessions.create({
-      line_items: [
-        {
-          price_data: {
-            currency: "USD",
-            unit_amount: amount,
-            product_data: {
-              name: paymentInfo.parcelName,
-            },
+          ],
+          customer_email: paymentInfo.senderEmail,
+          mode: "payment",
+          metadata: {
+            parcelId: paymentInfo.parcelId,
           },
-          quantity: 1,
-        },
-      ],
-      customer_email: paymentInfo.senderEmail,
-      mode: "payment",
-      metadata: {
-        parcelId: paymentInfo.parcelId,
-      },
-      success_url: `${process.env.SITE_DOMAIN}/dashboard/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.SITE_DOMAIN}/dashboard/payment-cancelled`,
+          success_url: `${process.env.SITE_DOMAIN}/dashboard/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${process.env.SITE_DOMAIN}/dashboard/payment-cancelled`,
+        });
+
+        res.send({ url: session.url });
+      } catch (error) {
+        console.error("Stripe Error:", error);
+        res.status(500).send({ error: error.message });
+      }
     });
 
-    res.send({ url: session.url });
-  } catch (error) {
-    console.error("Stripe Error:", error);
-    res.status(500).send({ error: error.message });
-  }
-});
 
+
+
+    // payment related API (CLEAN & CORRECT) 2
+    app.post("/create-checkout-session", async (req, res) => {
+      try {
+        const paymentInfo = req.body;
+
+        // amount in cents
+        const amount = parseInt(paymentInfo.cost) * 100;
+
+        const session = await stripe.checkout.sessions.create({
+          line_items: [
+            {
+              price_data: {
+                currency: "USD",
+                unit_amount: amount,
+                product_data: {
+                  name: paymentInfo.parcelName,
+                },
+              },
+              quantity: 1,
+            },
+          ],
+          customer_email: paymentInfo.senderEmail,
+          mode: "payment",
+          metadata: {
+            parcelId: paymentInfo.parcelId,
+          },
+          success_url: `${process.env.SITE_DOMAIN}/dashboard/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${process.env.SITE_DOMAIN}/dashboard/payment-cancelled`,
+        });
+
+        res.send({ url: session.url });
+      } catch (error) {
+        console.error("Stripe Error:", error);
+        res.status(500).send({ error: error.message });
+      }
+    });
+
+
+    // payment success 
+    app.patch("/payment-success", async(req, res)=>{
+      const sessionId = req.query.session_id;
+      
+      const session = await stripe.checkout.sessions.retrieve(sessionId)
+      if(session.payment_status === "paid"){
+        const id = session.metadata.parcelId;
+
+        const query = {_id: new ObjectId(id)}
+        const update = {
+          $set: {
+            paymentStatus: "paid",
+          }
+        }
+
+
+        const result = await parcelCollection.updateOne(query, update)
+        res.send(result)
+
+      }
+
+
+      res.send({success: true})
+    })
 
 
 
